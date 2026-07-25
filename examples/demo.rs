@@ -16,7 +16,10 @@ fn main() {
     let cluster = GpuCluster::discover(&[0]).expect("failed to discover GPU");
     let info = &cluster.infos[0];
     println!("    GPU:    {}", info.name);
-    println!("    sm_{}{}", info.compute_capability.0, info.compute_capability.1);
+    println!(
+        "    sm_{}{}",
+        info.compute_capability.0, info.compute_capability.1
+    );
     println!("    VRAM:   {} MB", info.total_vram / 1024 / 1024);
     println!("    Free:   {} MB", info.free_vram / 1024 / 1024);
     println!("    SMs:    {}", info.sm_count);
@@ -130,5 +133,8 @@ fn main() {
     println!("  ALL TESTS PASSED ✓");
     println!("========================================");
     println!();
-    println!("VUGVA is working on your {} (sm_{}{})", info.name, info.compute_capability.0, info.compute_capability.1);
+    println!(
+        "VUGVA is working on your {} (sm_{}{})",
+        info.name, info.compute_capability.0, info.compute_capability.1
+    );
 }

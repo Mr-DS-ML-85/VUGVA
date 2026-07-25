@@ -118,7 +118,9 @@ mod hw {
             ptrs.push(dptr);
         }
         for p in ptrs {
-            unsafe { cuMemFree_v2(p); }
+            unsafe {
+                cuMemFree_v2(p);
+            }
         }
     }
 
@@ -213,7 +215,10 @@ mod hw {
                 advance_to(&mut page, from);
             }
             let result = page.transition(to);
-            assert!(result.is_ok(), "valid transition {from:?} -> {to:?} was rejected");
+            assert!(
+                result.is_ok(),
+                "valid transition {from:?} -> {to:?} was rejected"
+            );
         }
     }
 
@@ -236,7 +241,10 @@ mod hw {
                 advance_to(&mut page, from);
             }
             let result = page.transition(to);
-            assert!(result.is_err(), "invalid transition {from:?} -> {to:?} should have been rejected");
+            assert!(
+                result.is_err(),
+                "invalid transition {from:?} -> {to:?} should have been rejected"
+            );
         }
     }
 
