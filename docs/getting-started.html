@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Getting Started — VUGVA</title>
+<meta name="description" content="Get started with VUGVA — software-defined GPU memory virtualization. Installation, usage, and basic API."/>
+<link rel="canonical" href="https://vugva.devforge.qzz.io/docs/getting-started.html"/>
+<meta property="og:url" content="https://vugva.devforge.qzz.io/docs/getting-started.html"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#06080d;--surface:#0f1423;--glass:rgba(255,255,255,0.03);--glass-border:rgba(255,255,255,0.08);--green:#76b900;--blue:#4facfe;--purple:#a855f7;--pink:#f72585;--text:#e2e8f0;--text-dim:#94a3b8;--text-faint:#475569;--font-mono:'JetBrains Mono',monospace;--font-sans:'Inter',system-ui,sans-serif}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);line-height:1.7}
+.container{max-width:800px;margin:0 auto;padding:6rem 2rem 4rem}
+a{color:var(--green);text-decoration:none}
+a:hover{text-decoration:underline}
+h1{font-size:2.4rem;font-weight:700;margin-bottom:1rem;letter-spacing:-.02em}
+h2{font-size:1.4rem;font-weight:600;margin:2.5rem 0 .8rem;color:var(--green);font-family:var(--font-mono)}
+h3{font-size:1.1rem;font-weight:600;margin:2rem 0 .5rem}
+p{color:var(--text-dim);margin-bottom:1rem}
+ul,ol{color:var(--text-dim);margin-bottom:1rem;padding-left:1.5rem}
+li{margin-bottom:.4rem}
+code{font-family:var(--font-mono);font-size:.85rem;background:var(--surface);border:1px solid var(--glass-border);padding:.15rem .4rem;border-radius:4px}
+pre{background:#0d1117;border:1px solid var(--glass-border);border-radius:12px;padding:1.5rem;font-family:var(--font-mono);font-size:.82rem;overflow-x:auto;margin:1rem 0 1.5rem;line-height:1.5}
+pre code{background:none;border:none;padding:0}
+.badge{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .8rem;border-radius:6px;background:var(--glass);border:1px solid var(--glass-border);font-family:var(--font-mono);font-size:.7rem;color:var(--green);margin-bottom:1.5rem}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.card{background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:1.5rem;margin:1rem 0}
+.card h3{margin-top:0}
+.tip{background:rgba(118,185,0,0.08);border:1px solid rgba(118,185,0,0.2);border-radius:10px;padding:1rem 1.2rem;margin:1rem 0}
+.tip::before{content:'TIP';font-family:var(--font-mono);font-size:.65rem;color:var(--green);letter-spacing:1px;display:block;margin-bottom:.3rem}
+.warn{background:rgba(247,37,133,0.08);border:1px solid rgba(247,37,133,0.2);border-radius:10px;padding:1rem 1.2rem;margin:1rem 0}
+.warn::before{content:'WARNING';font-family:var(--font-mono);font-size:.65rem;color:var(--pink);letter-spacing:1px;display:block;margin-bottom:.3rem}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:.8rem 2rem;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(20px);background:rgba(6,8,13,0.7);border-bottom:1px solid var(--glass-border)}
+.nav-logo{font-family:var(--font-mono);font-size:1.1rem;font-weight:700;color:var(--green);letter-spacing:2px}
+.nav-links{display:flex;gap:1.5rem;list-style:none}
+.nav-links a{color:var(--text-dim);text-decoration:none;font-size:.8rem;font-weight:500;transition:color .3s}
+.nav-links a:hover{color:var(--green)}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-logo">VUGVA</div>
+  <ul class="nav-links">
+    <li><a href="https://vugva.devforge.qzz.io/">Home</a></li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/getting-started.html" style="color:var(--green)">Getting Started</a></li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/architecture.html">Architecture</a></li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/benchmarks.html">Benchmarks</a></li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/api.html">API Reference</a></li>
+  </ul>
+</nav>
+
+<div class="container">
+  <div class="badge"><span class="dot"></span>docs · getting started</div>
+  <h1>Getting Started</h1>
+  <p>VUGVA is a software-defined GPU memory virtualization library. Zero external crates, pure Rust FFI via dlopen(3). Works on any NVIDIA GPU from Tesla P100 to Blackwell.</p>
+
+  <h2>Prerequisites</h2>
+  <ul>
+    <li><strong>Rust</strong> 1.70+ (stable)</li>
+    <li><strong>NVIDIA GPU</strong> with compute capability sm_60 or higher</li>
+    <li><strong>libcuda.so</strong> — the CUDA driver library (installed with NVIDIA driver)</li>
+    <li><strong>libnvrtc.so</strong> — NVRTC library (for runtime kernel compilation, optional)</li>
+  </ul>
+
+  <div class="tip">VUGVA does NOT require the CUDA toolkit headers or nvcc. It loads CUDA symbols at runtime via dlopen.</div>
+
+  <h2>Installation</h2>
+  <p>Add to your <code>Cargo.toml</code>:</p>
+  <pre><code>[dependencies]
+vugva = { path = "../vugva" }</code></pre>
+
+  <p>Or clone and build directly:</p>
+  <pre><code>git clone https://github.com/Mr-DS-ML-85/VUGVA.git
+cd VUGVA/vugva
+cargo build</code></pre>
+
+  <h2>Verify Installation</h2>
+  <pre><code>cargo run --example demo</code></pre>
+  <p>This runs the full demo on your GPU — discovery, allocation, access, free, page state machine.</p>
+
+  <h2>Basic Usage</h2>
+  <pre><code>use vugva::allocator::VugvaEngine;
+
+fn main() -> vugva::Result<()> {
+    // Initialize with GPU ordinal(s)
+    let mut engine = VugvaEngine::new(&amp;[0])?;
+
+    // Allocate a named tensor (Algorithm 1 from paper)
+    let name = engine.allocate(
+        "model.embed.weight",  // unique name
+        &amp;[8192, 8192],        // shape
+        2,                      // element size (bytes, f16)
+    )?;
+
+    // Get device pointer for GPU 0
+    let ptr = engine.access(&amp;name, 0)?;
+
+    // Free when done
+    engine.free(&amp;name)?;
+
+    Ok(())
+}</code></pre>
+
+  <h2>Multi-GPU Sharding</h2>
+  <p>When an allocation exceeds single GPU capacity, VUGVA automatically shards across all GPUs:</p>
+  <pre><code>// 2 GPUs → 2GB tensor split into 1GB per GPU
+let mut engine = VugvaEngine::new(&amp;[0, 1])?;
+let name = engine.allocate("big_tensor", &amp;[1024, 1024, 512], 4)?;</code></pre>
+
+  <h2>Running Tests</h2>
+  <pre><code># Unit tests (no GPU required)
+cargo test --lib
+
+# Hardware integration tests (requires GPU)
+cargo test --test hardware
+
+# All 42 tests
+cargo test</code></pre>
+
+  <div class="tip">Hardware tests check for GPU availability and skip gracefully if no GPU is found.</div>
+
+  <h2>Compatibility</h2>
+  <div class="card">
+    <h3>Tested Hardware</h3>
+    <ul>
+      <li><strong>RTX 4060</strong> (sm_89, 8GB VRAM) — primary development GPU</li>
+      <li>All architectures sm_60 to sm_120 should work</li>
+      <li>Single and multi-GPU configurations</li>
+    </ul>
+  </div>
+
+  <h2>Next Steps</h2>
+  <ul>
+    <li><a href="https://vugva.devforge.qzz.io/docs/architecture.html">Architecture Deep Dive</a> — how CPU-bypass works</li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/benchmarks.html">Benchmarks</a> — measured results on RTX 4060</li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/api.html">API Reference</a> — full public API documentation</li>
+  </ul>
+</div>
+</body>
+</html>

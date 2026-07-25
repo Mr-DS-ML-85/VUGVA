@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Architecture — VUGVA</title>
+<meta name="description" content="VUGVA architecture deep dive — CPU-bypass DMA, page state machine, three-tier hierarchy, NUMA routing."/>
+<link rel="canonical" href="https://vugva.devforge.qzz.io/docs/architecture.html"/>
+<meta property="og:url" content="https://vugva.devforge.qzz.io/docs/architecture.html"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#06080d;--surface:#0f1423;--glass:rgba(255,255,255,0.03);--glass-border:rgba(255,255,255,0.08);--green:#76b900;--blue:#4facfe;--purple:#a855f7;--pink:#f72585;--text:#e2e8f0;--text-dim:#94a3b8;--text-faint:#475569;--font-mono:'JetBrains Mono',monospace;--font-sans:'Inter',system-ui,sans-serif}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);line-height:1.7}
+.container{max-width:800px;margin:0 auto;padding:6rem 2rem 4rem}
+a{color:var(--green);text-decoration:none}
+h1{font-size:2.4rem;font-weight:700;margin-bottom:1rem;letter-spacing:-.02em}
+h2{font-size:1.4rem;font-weight:600;margin:2.5rem 0 .8rem;color:var(--green);font-family:var(--font-mono)}
+h3{font-size:1.1rem;font-weight:600;margin:2rem 0 .5rem}
+p{color:var(--text-dim);margin-bottom:1rem}
+ul,ol{color:var(--text-dim);margin-bottom:1rem;padding-left:1.5rem}
+li{margin-bottom:.4rem}
+code{font-family:var(--font-mono);font-size:.85rem;background:var(--surface);border:1px solid var(--glass-border);padding:.15rem .4rem;border-radius:4px}
+pre{background:#0d1117;border:1px solid var(--glass-border);border-radius:12px;padding:1.5rem;font-family:var(--font-mono);font-size:.82rem;overflow-x:auto;margin:1rem 0 1.5rem;line-height:1.5}
+pre code{background:none;border:none;padding:0}
+.badge{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .8rem;border-radius:6px;background:var(--glass);border:1px solid var(--glass-border);font-family:var(--font-mono);font-size:.7rem;color:var(--green);margin-bottom:1.5rem}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.card{background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:1.5rem;margin:1rem 0}
+.card h3{margin-top:0}
+.tip{background:rgba(118,185,0,0.08);border:1px solid rgba(118,185,0,0.2);border-radius:10px;padding:1rem 1.2rem;margin:1rem 0}
+.tip::before{content:'TIP';font-family:var(--font-mono);font-size:.65rem;color:var(--green);letter-spacing:1px;display:block;margin-bottom:.3rem}
+table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;margin:1rem 0}
+th{background:rgba(118,185,0,0.1);padding:.8rem 1rem;text-align:left;font-family:var(--font-mono);font-size:.8rem;color:var(--green);border-bottom:1px solid var(--glass-border)}
+td{padding:.7rem 1rem;border-bottom:1px solid var(--glass-border);font-size:.85rem;color:var(--text-dim)}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:.8rem 2rem;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(20px);background:rgba(6,8,13,0.7);border-bottom:1px solid var(--glass-border)}
+.nav-logo{font-family:var(--font-mono);font-size:1.1rem;font-weight:700;color:var(--green);letter-spacing:2px}
+.nav-links{display:flex;gap:1.5rem;list-style:none}
+.nav-links a{color:var(--text-dim);text-decoration:none;font-size:.8rem;font-weight:500;transition:color .3s}
+.nav-links a:hover{color:var(--green)}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-logo">VUGVA</div>
+  <ul class="nav-links">
+    <li><a href="https://vugva.devforge.qzz.io/">Home</a></li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/getting-started.html">Getting Started</a></li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/architecture.html" style="color:var(--green)">Architecture</a></li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/benchmarks.html">Benchmarks</a></li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/api.html">API Reference</a></li>
+  </ul>
+</nav>
+
+<div class="container">
+  <div class="badge"><span class="dot"></span>docs · architecture</div>
+  <h1>Architecture Deep Dive</h1>
+  <p>VUGVA implements a CPU-bypass hybrid memory architecture for GPU virtualization. The CPU only touches 72 bytes of metadata per operation — the actual megabyte-scale data moves via DMA.</p>
+
+  <h2>The Core Problem</h2>
+  <p>In multi-GPU clusters without NVLink, tensor data is fragmented across GPU VRAM cards. Moving data between GPUs requires CPU involvement, creating a bottleneck. Traditional approaches copy tensors through CPU memory, wasting bandwidth.</p>
+
+  <h2>CPU-Bypass Architecture</h2>
+  <p>VUGVA separates control plane (CPU) from data plane (DMA):</p>
+  <div class="card">
+    <h3>Control Plane — 72 Bytes Total</h3>
+    <ul>
+      <li><strong>8 bytes</strong> — Page table lookup (virtual address → physical location)</li>
+      <li><strong>64 bytes</strong> — DMA descriptor (source, destination, size, flags)</li>
+    </ul>
+    <p>The CPU writes these 72 bytes and returns. It never touches the actual tensor data.</p>
+  </div>
+  <div class="card">
+    <h3>Data Plane — Megabytes via DMA</h3>
+    <p>The DMA engine reads the 64-byte descriptor and transfers the full tensor autonomously. GPU MMU handles address translation. The CPU is free to do other work.</p>
+  </div>
+
+  <h2>Page State Machine (Paper Figure 5)</h2>
+  <p>Every GPU page goes through 5 states:</p>
+  <pre><code>                    ┌──────────┐
+         free()     │ Unmapped │
+        ┌───────────│          │
+        │           └──────────┘
+        ▼
+  ┌───────────┐  activate()  ┌──────────┐
+  │ Allocated │──────────────│ Resident │◀─── promote() ───┐
+  └───────────┘              └──────────┘                   │
+                                  │                         │
+                            demote()                   demote()
+                                  │                         │
+                                  ▼                         │
+                              ┌────────┐                    │
+                              │  Warm  │────────────────────┘
+                              └────────┘       promote()
+                                  │
+                            sweep()
+                                  ▼
+                              ┌────────┐
+                              │  Cold  │
+                              └────────┘</code></pre>
+
+  <table>
+    <thead><tr><th>Transition</th><th>Trigger</th><th>CPU Touch</th></tr></thead>
+    <tbody>
+      <tr><td>Unmapped → Allocated</td><td>allocate()</td><td>8 bytes (page table)</td></tr>
+      <tr><td>Allocated → Resident</td><td>activate()</td><td>64 bytes (DMA descriptor)</td></tr>
+      <tr><td>Resident ↔ Warm</td><td>demote() / promote()</td><td>64 bytes each</td></tr>
+      <tr><td>Warm → Cold</td><td>sweep() (background)</td><td>64 bytes</td></tr>
+      <tr><td>Any → Unmapped</td><td>free()</td><td>8 bytes</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Three-Tier Hierarchy</h2>
+  <table>
+    <thead><tr><th>Tier</th><th>Latency</th><th>Bandwidth</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td>VRAM</td><td>&lt; 100 ns</td><td>1,008 GB/s</td><td>Active tensors (hot)</td></tr>
+      <tr><td>DRAM</td><td>2-8 µs</td><td>28-58 GB/s</td><td>Recently used (warm)</td></tr>
+      <tr><td>SSD</td><td>50-100 µs</td><td>5-7 GB/s</td><td>Archived / model weights (cold)</td></tr>
+    </tbody>
+  </table>
+  <p>100x bandwidth gaps between tiers. Background sweeper demotes idle pages. Predictive prefetch promotes K steps ahead.</p>
+
+  <h2>DMA Descriptor Ring</h2>
+  <p>1,024-slot circular buffer. Each slot is exactly 64 bytes:</p>
+  <pre><code>// 64-byte DMA descriptor (Paper §3.3)
+struct DmaDescriptor {
+    src_addr:    u64,  // 8 bytes — source GPU/DRAM address
+    dst_addr:    u64,  // 8 bytes — destination address
+    size:        u64,  // 8 bytes — transfer size in bytes
+    flags:       u64,  // 8 bytes — direction, priority, sync
+    metadata:    [u8; 32], // 32 bytes — page table, NUMA hint
+}
+// Total: exactly 64 bytes. CPU writes this, DMA moves data.</code></pre>
+
+  <h2>Look-Ahead Prefetch (Algorithm 3)</h2>
+  <p>The prefetch engine reads the attention pattern from the model graph to predict which layers will be needed K steps ahead:</p>
+  <ul>
+    <li><strong>K</strong> — lookahead depth (configurable, default 2-4 layers)</li>
+    <li>Predicts next K layers from transformer attention heads</li>
+    <li>Issues P2P DMA prefetch while GPU computes current layer</li>
+    <li>Hides PCIe latency completely — data arrives before it's needed</li>
+  </ul>
+
+  <div class="tip">The prefetch gain is >10% on RTX 4060. On systems with higher PCIe latency, gains increase further.</p></div>
+
+  <h2>Zero-Dependency Design</h2>
+  <p>VUGVA uses dlopen(3) to load CUDA symbols at runtime:</p>
+  <pre><code>// No #include, no nvcc, no CUDA toolkit needed
+// Just the driver library libcuda.so
+
+unsafe {
+    let handle = dlopen(b"libcuda.so\0".as_ptr(), RTLD_NOW);
+    let cuInit = dlsym(handle, b"cuInit\0".as_ptr());
+    let cuMemAlloc = dlsym(handle, b"cuMemAlloc_v2\0".as_ptr());
+    // ... all symbols loaded dynamically
+}</code></pre>
+  <p>This means VUGVA works with any CUDA version (10, 11, 12, 13) without recompilation.</p>
+
+  <h2>Source Layout</h2>
+  <pre><code>vugva/src/
+├── lib.rs          # Crate root, error types, constants
+├── ffi/
+│   ├── mod.rs      # dlopen/dlsym loader
+│   ├── cuda.rs     # CUDA FFI declarations (cuMemAlloc, cuCtxCreate_v2, etc.)
+│   └── nvrtc.rs    # NVRTC FFI (runtime compilation)
+├── gpu.rs          # GPU discovery, P2P, NUMA distance
+├── vmt.rs          # Virtual Memory Table, page state machine
+├── allocator.rs    # V1 allocator (Algorithm 1) — fast-path/shard
+├── tiered.rs       # V2 tiered allocator (Algorithm 2) — three-tier
+├── dma.rs          # DMA descriptor ring (64-byte slots)
+├── streams.rs      # CUDA stream/event management
+├── prefetch.rs     # Look-Ahead Attention Tracking (Algorithm 3)
+└── nvrtc_kernel.rs # NVRTC runtime compilation</code></pre>
+</div>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# VUGVA build artifacts
+/target/
+*.o
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.lock

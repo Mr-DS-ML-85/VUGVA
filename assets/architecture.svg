@@ -1,0 +1,120 @@
+<svg width="860" height="520" viewBox="0 0 860 520" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="archBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#16213e"/>
+    </linearGradient>
+    <linearGradient id="layer1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#667eea"/>
+      <stop offset="100%" style="stop-color:#764ba2"/>
+    </linearGradient>
+    <linearGradient id="cpubypass" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#4facfe"/>
+      <stop offset="100%" style="stop-color:#00f2fe"/>
+    </linearGradient>
+    <marker id="arrowPurple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#667eea"/></marker>
+    <marker id="arrowBlue" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4facfe"/></marker>
+    <marker id="arrowGreen" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#16a34a"/></marker>
+    <marker id="arrowSky" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#0ea5e9"/></marker>
+    <marker id="arrowP2P" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto"><polygon points="0 0, 6 3, 0 6" fill="#a8e000"/></marker>
+  </defs>
+
+  <rect width="860" height="520" rx="12" fill="url(#archBg)"/>
+
+  <!-- Layer 0: Framework -->
+  <rect x="30" y="20" width="800" height="60" rx="10" fill="url(#layer1)" opacity="0.85"/>
+  <text x="430" y="46" text-anchor="middle" font-family="system-ui, sans-serif" font-size="15" font-weight="bold" fill="#fff">Deep Learning Framework</text>
+  <text x="430" y="66" text-anchor="middle" font-family="monospace" font-size="11" fill="#ddd">PyTorch / vLLM / SGLang / HuggingFace</text>
+
+  <line x1="430" y1="80" x2="430" y2="110" stroke="#667eea" stroke-width="2" marker-end="url(#arrowPurple)"/>
+
+  <!-- Layer 1: VUGVA Engine -->
+  <rect x="30" y="110" width="800" height="120" rx="10" fill="#1e293b" stroke="#334155" stroke-width="1.5"/>
+
+  <rect x="50" y="125" width="180" height="40" rx="6" fill="#16a34a" opacity="0.2" stroke="#16a34a" stroke-width="1"/>
+  <text x="140" y="142" text-anchor="middle" font-family="monospace" font-size="11" font-weight="bold" fill="#16a34a">Virtual Memory Table</text>
+  <text x="140" y="157" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">string → page mapping</text>
+
+  <rect x="250" y="125" width="180" height="40" rx="6" fill="#eab308" opacity="0.2" stroke="#eab308" stroke-width="1"/>
+  <text x="340" y="142" text-anchor="middle" font-family="monospace" font-size="11" font-weight="bold" fill="#eab308">Page State Machine</text>
+  <text x="340" y="157" text-anchor="middle" font-family="monospace" font-size="9" fill="#fde047">Unmapped → Resident → Cold</text>
+
+  <rect x="450" y="125" width="180" height="40" rx="6" fill="#f97316" opacity="0.2" stroke="#f97316" stroke-width="1"/>
+  <text x="540" y="142" text-anchor="middle" font-family="monospace" font-size="11" font-weight="bold" fill="#f97316">DMA Descriptor Ring</text>
+  <text x="540" y="157" text-anchor="middle" font-family="monospace" font-size="9" fill="#fdba74">64B per transfer</text>
+
+  <rect x="650" y="125" width="160" height="40" rx="6" fill="#a855f7" opacity="0.2" stroke="#a855f7" stroke-width="1"/>
+  <text x="730" y="142" text-anchor="middle" font-family="monospace" font-size="11" font-weight="bold" fill="#a855f7">Look-Ahead Prefetch</text>
+  <text x="730" y="157" text-anchor="middle" font-family="monospace" font-size="9" fill="#c4b5fd">K layers ahead</text>
+
+  <rect x="50" y="180" width="760" height="36" rx="6" fill="url(#cpubypass)" opacity="0.12" stroke="url(#cpubypass)" stroke-width="1"/>
+  <text x="430" y="203" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" fill="#4facfe">CPU-BYPASS CONTROL PLANE — CPU touches only 72 bytes metadata per promotion</text>
+
+  <line x1="430" y1="230" x2="430" y2="265" stroke="#4facfe" stroke-width="2" marker-end="url(#arrowBlue)"/>
+  <text x="445" y="252" font-family="monospace" font-size="10" fill="#4facfe">DMA (data plane)</text>
+
+  <!-- Layer 2: Memory Tiers -->
+  <rect x="30" y="270" width="250" height="110" rx="10" fill="#065f46" opacity="0.3" stroke="#16a34a" stroke-width="1.5"/>
+  <rect x="40" y="280" width="80" height="30" rx="5" fill="#16a34a" opacity="0.8"/>
+  <text x="80" y="300" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" fill="#fff">GPU VRAM</text>
+  <text x="40" y="330" font-family="monospace" font-size="10" fill="#86efac">Tier 0 — Hot</text>
+  <text x="40" y="348" font-family="monospace" font-size="10" fill="#86efac">Latency:  &lt; 100 ns</text>
+  <text x="40" y="366" font-family="monospace" font-size="10" fill="#86efac">Bandwidth: 1,008 GB/s</text>
+
+  <rect x="305" y="270" width="250" height="110" rx="10" fill="#164e63" opacity="0.3" stroke="#0ea5e9" stroke-width="1.5"/>
+  <rect x="315" y="280" width="80" height="30" rx="5" fill="#0ea5e9" opacity="0.8"/>
+  <text x="355" y="300" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" fill="#fff">System DRAM</text>
+  <text x="315" y="330" font-family="monospace" font-size="10" fill="#7dd3fc">Tier 1 — Warm</text>
+  <text x="315" y="348" font-family="monospace" font-size="10" fill="#7dd3fc">Latency:  2 – 8 µs</text>
+  <text x="315" y="366" font-family="monospace" font-size="10" fill="#7dd3fc">Bandwidth: 28 – 58 GB/s</text>
+
+  <rect x="580" y="270" width="250" height="110" rx="10" fill="#7c2d12" opacity="0.3" stroke="#ea580c" stroke-width="1.5"/>
+  <rect x="590" y="280" width="80" height="30" rx="5" fill="#ea580c" opacity="0.8"/>
+  <text x="630" y="300" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" fill="#fff">NVMe SSD</text>
+  <text x="590" y="330" font-family="monospace" font-size="10" fill="#fdba74">Tier 2 — Cold</text>
+  <text x="590" y="348" font-family="monospace" font-size="10" fill="#fdba74">Latency:  50 – 100 µs</text>
+  <text x="590" y="366" font-family="monospace" font-size="10" fill="#fdba74">Bandwidth: 5 – 7 GB/s</text>
+
+  <!-- Tier arrows -->
+  <line x1="280" y1="325" x2="305" y2="325" stroke="#16a34a" stroke-width="2" marker-end="url(#arrowGreen)"/>
+  <line x1="555" y1="325" x2="580" y2="325" stroke="#0ea5e9" stroke-width="2" marker-end="url(#arrowSky)"/>
+  <text x="292" y="318" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">promote</text>
+  <text x="292" y="340" text-anchor="middle" font-family="monospace" font-size="9" fill="#fca5a5">evict</text>
+  <text x="567" y="318" text-anchor="middle" font-family="monospace" font-size="9" fill="#7dd3fc">load</text>
+  <text x="567" y="340" text-anchor="middle" font-family="monospace" font-size="9" fill="#fca5a5">spill</text>
+
+  <!-- GPU cluster -->
+  <rect x="30" y="410" width="800" height="90" rx="10" fill="#0f172a" stroke="#1e293b" stroke-width="1"/>
+
+  <g transform="translate(50, 425)">
+    <rect width="90" height="55" rx="6" fill="#16a34a" opacity="0.25" stroke="#16a34a" stroke-width="1"/>
+    <text x="45" y="22" text-anchor="middle" font-family="monospace" font-size="11" font-weight="bold" fill="#16a34a">GPU 0</text>
+    <text x="45" y="40" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">RTX 4060</text>
+  </g>
+  <g transform="translate(160, 425)">
+    <rect width="90" height="55" rx="6" fill="#16a34a" opacity="0.25" stroke="#16a34a" stroke-width="1"/>
+    <text x="45" y="22" text-anchor="middle" font-family="monospace" font-size="11" font-weight="bold" fill="#16a34a">GPU 1</text>
+    <text x="45" y="40" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">RTX 4060</text>
+  </g>
+  <g transform="translate(270, 425)">
+    <rect width="90" height="55" rx="6" fill="#16a34a" opacity="0.25" stroke="#16a34a" stroke-width="1"/>
+    <text x="45" y="22" text-anchor="middle" font-family="monospace" font-size="11" font-weight="bold" fill="#16a34a">GPU 2</text>
+    <text x="45" y="40" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">RTX 4060</text>
+  </g>
+  <g transform="translate(380, 425)">
+    <rect width="90" height="55" rx="6" fill="#16a34a" opacity="0.25" stroke="#16a34a" stroke-width="1"/>
+    <text x="45" y="22" text-anchor="middle" font-family="monospace" font-size="11" font-weight="bold" fill="#16a34a">GPU 3</text>
+    <text x="45" y="40" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">RTX 4060</text>
+  </g>
+
+  <line x1="140" y1="452" x2="160" y2="452" stroke="#a8e000" stroke-width="1.5" marker-end="url(#arrowP2P)"/>
+  <line x1="250" y1="452" x2="270" y2="452" stroke="#a8e000" stroke-width="1.5" marker-end="url(#arrowP2P)"/>
+  <line x1="360" y1="452" x2="380" y2="452" stroke="#a8e000" stroke-width="1.5" marker-end="url(#arrowP2P)"/>
+  <text x="265" y="475" text-anchor="middle" font-family="monospace" font-size="9" fill="#a8e000">PCIe P2P copy</text>
+
+  <rect x="500" y="430" width="310" height="45" rx="6" fill="#7c3aed" opacity="0.15" stroke="#7c3aed" stroke-width="1"/>
+  <text x="655" y="450" text-anchor="middle" font-family="monospace" font-size="11" font-weight="bold" fill="#a78bfa">PCIe Gen4 ×16</text>
+  <text x="655" y="465" text-anchor="middle" font-family="monospace" font-size="9" fill="#c4b5fd">31.5 GB/s per direction</text>
+
+  <text x="430" y="500" text-anchor="middle" font-family="monospace" font-size="9" fill="#64748b">NUMA-aware routing: BW_factor = { 0.95 (dist ≤ 12), 0.80 (dist ≤ 20), 0.65 (dist > 20) }</text>
+</svg>

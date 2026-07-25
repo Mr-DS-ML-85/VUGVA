@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>API Reference — VUGVA</title>
+<meta name="description" content="Complete VUGVA API reference — VugvaEngine, page state machine, DMA ring, FFI loader."/>
+<link rel="canonical" href="https://vugva.devforge.qzz.io/docs/api.html"/>
+<meta property="og:url" content="https://vugva.devforge.qzz.io/docs/api.html"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#06080d;--surface:#0f1423;--glass:rgba(255,255,255,0.03);--glass-border:rgba(255,255,255,0.08);--green:#76b900;--blue:#4facfe;--purple:#a855f7;--pink:#f72585;--text:#e2e8f0;--text-dim:#94a3b8;--text-faint:#475569;--font-mono:'JetBrains Mono',monospace;--font-sans:'Inter',system-ui,sans-serif}
+body{background:var(--bg);color:var(--text);font-family:var(--font-sans);line-height:1.7}
+.container{max-width:800px;margin:0 auto;padding:6rem 2rem 4rem}
+a{color:var(--green);text-decoration:none}
+h1{font-size:2.4rem;font-weight:700;margin-bottom:1rem;letter-spacing:-.02em}
+h2{font-size:1.4rem;font-weight:600;margin:2.5rem 0 .8rem;color:var(--green);font-family:var(--font-mono)}
+h3{font-size:1.1rem;font-weight:600;margin:2rem 0 .5rem}
+p{color:var(--text-dim);margin-bottom:1rem}
+ul,ol{color:var(--text-dim);margin-bottom:1rem;padding-left:1.5rem}
+li{margin-bottom:.4rem}
+code{font-family:var(--font-mono);font-size:.85rem;background:var(--surface);border:1px solid var(--glass-border);padding:.15rem .4rem;border-radius:4px}
+pre{background:#0d1117;border:1px solid var(--glass-border);border-radius:12px;padding:1.5rem;font-family:var(--font-mono);font-size:.82rem;overflow-x:auto;margin:1rem 0 1.5rem;line-height:1.5}
+pre code{background:none;border:none;padding:0}
+.badge{display:inline-flex;align-items:center;gap:.4rem;padding:.3rem .8rem;border-radius:6px;background:var(--glass);border:1px solid var(--glass-border);font-family:var(--font-mono);font-size:.7rem;color:var(--green);margin-bottom:1.5rem}
+.badge .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+.card{background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:1.5rem;margin:1rem 0}
+.card h3{margin-top:0;font-family:var(--font-mono);color:var(--green)}
+.sig{font-family:var(--font-mono);font-size:.85rem;color:var(--blue);margin:.5rem 0}
+.tip{background:rgba(118,185,0,0.08);border:1px solid rgba(118,185,0,0.2);border-radius:10px;padding:1rem 1.2rem;margin:1rem 0}
+.tip::before{content:'TIP';font-family:var(--font-mono);font-size:.65rem;color:var(--green);letter-spacing:1px;display:block;margin-bottom:.3rem}
+table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid var(--glass-border);border-radius:12px;overflow:hidden;margin:1rem 0}
+th{background:rgba(118,185,0,0.1);padding:.8rem 1rem;text-align:left;font-family:var(--font-mono);font-size:.8rem;color:var(--green);border-bottom:1px solid var(--glass-border)}
+td{padding:.7rem 1rem;border-bottom:1px solid var(--glass-border);font-size:.85rem;color:var(--text-dim)}
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:.8rem 2rem;display:flex;align-items:center;justify-content:space-between;backdrop-filter:blur(20px);background:rgba(6,8,13,0.7);border-bottom:1px solid var(--glass-border)}
+.nav-logo{font-family:var(--font-mono);font-size:1.1rem;font-weight:700;color:var(--green);letter-spacing:2px}
+.nav-links{display:flex;gap:1.5rem;list-style:none}
+.nav-links a{color:var(--text-dim);text-decoration:none;font-size:.8rem;font-weight:500;transition:color .3s}
+.nav-links a:hover{color:var(--green)}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-logo">VUGVA</div>
+  <ul class="nav-links">
+    <li><a href="https://vugva.devforge.qzz.io/">Home</a></li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/getting-started.html">Getting Started</a></li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/architecture.html">Architecture</a></li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/benchmarks.html">Benchmarks</a></li>
+    <li><a href="https://vugva.devforge.qzz.io/docs/api.html" style="color:var(--green)">API Reference</a></li>
+  </ul>
+</nav>
+
+<div class="container">
+  <div class="badge"><span class="dot"></span>docs · api reference</div>
+  <h1>API Reference</h1>
+  <p>Complete public API for VUGVA v0.1.0. All functions are on <code>VugvaEngine</code> unless noted.</p>
+
+  <h2>Core — VugvaEngine</h2>
+
+  <div class="card">
+    <h3>VugvaEngine::new</h3>
+    <p class="sig">pub fn new(gpu_ordinals: &[u32]) -> Result&lt;Self&gt;</p>
+    <p>Initialize the VUGVA engine with one or more GPU ordinals. Discovers GPU topology, sets up P2P paths, initializes VMT and DMA ring.</p>
+    <pre><code>let mut engine = VugvaEngine::new(&amp;[0])?;        // single GPU
+let mut engine = VugvaEngine::new(&amp;[0, 1, 2])?;  // multi-GPU</code></pre>
+    <table>
+      <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>gpu_ordinals</td><td>&amp;[u32]</td><td>GPU ordinals to use (from nvidia-smi)</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Returns:</strong> <code>Result&lt;VugvaEngine&gt;</code> — engine ready for allocation.</p>
+  </div>
+
+  <div class="card">
+    <h3>VugvaEngine::allocate</h3>
+    <p class="sig">pub fn allocate(&amp;mut self, name: &amp;str, shape: &[usize], elem_size: usize) -> Result&lt;String&gt;</p>
+    <p>Allocate a named tensor. Algorithm 1 from the paper. If it fits in one GPU → fast path. Otherwise → shard across all GPUs.</p>
+    <pre><code>let name = engine.allocate(
+    "model.embed.weight",  // unique name
+    &amp;[8192, 8192],        // shape
+    2,                      // element size (f16 = 2 bytes)
+)?;</code></pre>
+    <table>
+      <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>name</td><td>&amp;str</td><td>Unique identifier for this tensor</td></tr>
+        <tr><td>shape</td><td>&amp;[usize]</td><td>Tensor dimensions</td></tr>
+        <tr><td>elem_size</td><td>usize</td><td>Bytes per element (f16=2, f32=4, f64=8)</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Returns:</strong> <code>Result&lt;String&gt;</code> — the assigned name (may differ for sharded allocations).</p>
+  </div>
+
+  <div class="card">
+    <h3>VugvaEngine::access</h3>
+    <p class="sig">pub fn access(&amp;mut self, name: &amp;str, ordinal: u32) -> Result&lt;*mut c_void&gt;</p>
+    <p>Get the device pointer for a tensor on the specified GPU. Promotes the page to Resident state if needed. Handles NUMA-aware routing.</p>
+    <pre><code>let ptr = engine.access("model.embed.weight", 0)?;</code></pre>
+    <table>
+      <thead><tr><th>Parameter</th><th>Type</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>name</td><td>&amp;str</td><td>Tensor name from allocate()</td></tr>
+        <tr><td>ordinal</td><td>u32</td><td>GPU ordinal to get pointer for</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Returns:</strong> <code>Result&lt;*mut c_void&gt;</code> — raw CUDA device pointer.</p>
+  </div>
+
+  <div class="card">
+    <h3>VugvaEngine::free</h3>
+    <p class="sig">pub fn free(&amp;mut self, name: &amp;str) -> Result&lt;()&gt;</p>
+    <p>Free a named tensor. Releases all shards across GPUs. Transitions pages to Unmapped state.</p>
+    <pre><code>engine.free("model.embed.weight")?;</code></pre>
+  </div>
+
+  <div class="card">
+    <h3>VugvaEngine::free_vram</h3>
+    <p class="sig">pub fn free_vram(&amp;self, ordinal: u32) -> Result&lt;u64&gt;</p>
+    <p>Query free VRAM on a specific GPU in bytes.</p>
+    <pre><code>let free = engine.free_vram(0)?;  // bytes on GPU 0</code></pre>
+  </div>
+
+  <h2>Page State Machine</h2>
+
+  <div class="card">
+    <h3>Vmt::demote</h3>
+    <p class="sig">pub fn demote(&mut self, name: &amp;str) -> Result&lt;()&gt;</p>
+    <p>Demote a page from Resident → Warm or Warm → Cold. Used by background sweeper.</p>
+  </div>
+
+  <div class="card">
+    <h3>Vmt::promote</h3>
+    <p class="sig">pub fn promote(&mut self, name: &amp;str) -> Result&lt;()&gt;</p>
+    <p>Promote a page from Cold → Warm or Warm → Resident. Triggered by access() or prefetch.</p>
+  </div>
+
+  <div class="card">
+    <h3>Vmt::is_valid_transition</h3>
+    <p class="sig">pub fn is_valid_transition(from: PageState, to: PageState) -> bool</p>
+    <p>Check if a state transition is valid per Paper Figure 5. 8 valid, 6 invalid.</p>
+  </div>
+
+  <h2>DMA Ring</h2>
+
+  <div class="card">
+    <h3>DmaRing::submit</h3>
+    <p class="sig">pub fn submit(&amp;mut self, descriptor: DmaDescriptor) -> Result&lt;()&gt;</p>
+    <p>Submit a 64-byte DMA descriptor to the ring. CPU writes this, DMA engine picks it up autonomously.</p>
+  </div>
+
+  <h2>FFI Loader</h2>
+
+  <div class="card">
+    <h3>ffi::cuda_module</h3>
+    <p class="sig">pub fn cuda_module() -> Result&lt;&amp;'static DlLib&gt;</p>
+    <p>Load libcuda.so via dlopen. Returns cached handle on subsequent calls. All CUDA symbols are accessed through this.</p>
+  </div>
+
+  <div class="card">
+    <h3>ffi::nvrtc_module</h3>
+    <p class="sig">pub fn nvrtc_module() -> Result&lt;&amp;'static DlLib&gt;</p>
+    <p>Load libnvrtc.so via dlopen. For runtime kernel compilation. Optional — only needed if using NVRTC kernels.</p>
+  </div>
+
+  <div class="card">
+    <h3>sym_to_fn</h3>
+    <p class="sig">pub unsafe fn sym_to_fn&lt;F: Copy&gt;(lib: &amp;DlLib, name: &amp;str) -> Result&lt;F&gt;</p>
+    <p>Resolve a symbol from a loaded library to a typed function pointer.</p>
+    <pre><code>unsafe {
+    let cuInit: cuInit_t = sym_to_fn(lib, "cuInit")?;
+    cuInit(0);
+}</code></pre>
+  </div>
+
+  <h2>Error Types</h2>
+
+  <div class="card">
+    <h3>vugva::Error</h3>
+    <table>
+      <thead><tr><th>Variant</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>DlOpen(String)</td><td>Failed to load library (e.g. libcuda.so not found)</td></tr>
+        <tr><td>DlSym(String)</td><td>Failed to resolve symbol</td></tr>
+        <tr><td>Cuda(CUresult)</td><td>CUDA driver error with error code</td></tr>
+        <tr><td>Nvrtc(String)</td><td>NVRTC compilation error</td></tr>
+        <tr><td>InvalidName</td><td>Tensor name not found in VMT</td></tr>
+        <tr><td>NoFreeMemory</td><td>All GPUs out of VRAM</td></tr>
+        <tr><td>NoGpu</td><td>No GPUs detected</td></tr>
+        <tr><td>InvalidTransition</td><td>Page state machine invalid transition</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Constants</h2>
+  <pre><code>/// Maximum allocation for single-GPU fast path
+pub const SINGLE_GPU_LIMIT: usize = 4 * 1024 * 1024 * 1024; // 4 GB
+
+/// DMA descriptor size in bytes (Paper §3.3)
+pub const DMA_DESCRIPTOR_SIZE: usize = 64;
+
+/// Total metadata per promotion (8B page + 64B DMA)
+pub const METADATA_PER_PROMOTION: usize = 72;</code></pre>
+
+  <div class="tip">All types are in the <code>vugva</code> crate root. Use <code>use vugva::*</code> for quick access.</div>
+</div>
+</body>
+</html>

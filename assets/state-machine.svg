@@ -1,0 +1,53 @@
+<svg width="760" height="180" viewBox="0 0 760 180" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <text x="380" y="25" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="bold" fill="#e2e8f0">Page State Machine (Paper §4.1, Figure 5)</text>
+
+  <!-- States -->
+  <rect x="10" y="60" width="100" height="40" rx="8" fill="#334155" stroke="#64748b" stroke-width="1.5"/>
+  <text x="60" y="85" text-anchor="middle" font-family="monospace" font-size="10" font-weight="bold" fill="#94a3b8">UNMAPPED</text>
+
+  <rect x="150" y="60" width="110" height="40" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5"/>
+  <text x="205" y="85" text-anchor="middle" font-family="monospace" font-size="10" font-weight="bold" fill="#60a5fa">ALLOCATED</text>
+
+  <rect x="300" y="60" width="110" height="40" rx="8" fill="#14532d" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="355" y="85" text-anchor="middle" font-family="monospace" font-size="10" font-weight="bold" fill="#4ade80">RESIDENT</text>
+  <text x="355" y="105" text-anchor="middle" font-family="monospace" font-size="8" fill="#86efac">(VRAM)</text>
+
+  <rect x="460" y="60" width="110" height="40" rx="8" fill="#713f12" stroke="#eab308" stroke-width="1.5"/>
+  <text x="515" y="85" text-anchor="middle" font-family="monospace" font-size="10" font-weight="bold" fill="#facc15">WARM</text>
+  <text x="515" y="105" text-anchor="middle" font-family="monospace" font-size="8" fill="#fde047">(DRAM)</text>
+
+  <rect x="620" y="60" width="110" height="40" rx="8" fill="#7c2d12" stroke="#ea580c" stroke-width="1.5"/>
+  <text x="675" y="85" text-anchor="middle" font-family="monospace" font-size="10" font-weight="bold" fill="#fb923c">COLD</text>
+  <text x="675" y="105" text-anchor="middle" font-family="monospace" font-size="8" fill="#fdba74">(SSD)</text>
+
+  <!-- Forward arrows -->
+  <line x1="110" y1="80" x2="148" y2="80" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="129" y="74" text-anchor="middle" font-family="monospace" font-size="7" fill="#64748b">cudaMalloc</text>
+
+  <line x1="260" y1="80" x2="298" y2="80" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="279" y="74" text-anchor="middle" font-family="monospace" font-size="7" fill="#64748b">1st access</text>
+
+  <line x1="410" y1="74" x2="458" y2="74" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="434" y="68" text-anchor="middle" font-family="monospace" font-size="7" fill="#64748b">evict</text>
+
+  <line x1="570" y1="74" x2="618" y2="74" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="594" y="68" text-anchor="middle" font-family="monospace" font-size="7" fill="#64748b">spill</text>
+
+  <!-- Backward arrows -->
+  <line x1="618" y1="86" x2="572" y2="86" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="595" y="112" text-anchor="middle" font-family="monospace" font-size="7" fill="#64748b">load</text>
+
+  <line x1="458" y1="86" x2="412" y2="86" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <text x="435" y="112" text-anchor="middle" font-family="monospace" font-size="7" fill="#64748b">promote</text>
+
+  <!-- Resident ↔ Cold direct -->
+  <path d="M 355 100 Q 355 145 515 145 Q 675 145 675 100" fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <path d="M 675 100 Q 675 145 515 145 Q 355 145 355 100" fill="none" stroke="#94a3b8" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+  <text x="515" y="158" text-anchor="middle" font-family="monospace" font-size="7" fill="#64748b">direct evict / promote</text>
+</svg>

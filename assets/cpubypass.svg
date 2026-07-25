@@ -1,0 +1,66 @@
+<svg width="760" height="220" viewBox="0 0 760 220" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrowAmber" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#f59e0b"/></marker>
+    <marker id="arrowGreen2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#22c55e"/></marker>
+    <marker id="arrowGrey" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#94a3b8"/></marker>
+  </defs>
+
+  <rect width="760" height="220" rx="10" fill="#0f172a"/>
+
+  <text x="380" y="25" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="bold" fill="#e2e8f0">CPU-Bypass Data Flow (Paper §3.3)</text>
+
+  <!-- CPU box -->
+  <rect x="30" y="45" width="160" height="150" rx="8" fill="#312e81" opacity="0.4" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="110" y="70" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" fill="#818cf8">CPU</text>
+
+  <rect x="45" y="85" width="130" height="45" rx="4" fill="#6366f1" opacity="0.2"/>
+  <text x="110" y="105" text-anchor="middle" font-family="monospace" font-size="9" fill="#a5b4fc">8B page lookup</text>
+  <text x="110" y="120" text-anchor="middle" font-family="monospace" font-size="9" fill="#a5b4fc">+ 64B DMA desc</text>
+
+  <text x="110" y="165" text-anchor="middle" font-family="monospace" font-size="22" font-weight="bold" fill="#6366f1">72B</text>
+  <text x="110" y="182" text-anchor="middle" font-family="monospace" font-size="8" fill="#818cf8">total CPU touches</text>
+
+  <!-- Arrow -->
+  <line x1="190" y1="107" x2="250" y2="107" stroke="#f59e0b" stroke-width="2" marker-end="url(#arrowAmber)"/>
+
+  <!-- DMA Ring -->
+  <rect x="250" y="45" width="160" height="150" rx="8" fill="#78350f" opacity="0.3" stroke="#f59e0b" stroke-width="1.5"/>
+  <text x="330" y="70" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" fill="#fbbf24">DMA Ring</text>
+  <text x="330" y="85" text-anchor="middle" font-family="monospace" font-size="9" fill="#fcd34d">1024 slots</text>
+
+  <g transform="translate(270, 95)">
+    <rect width="20" height="14" rx="2" fill="#f59e0b" opacity="0.6"/>
+    <rect x="25" width="20" height="14" rx="2" fill="#f59e0b" opacity="0.6"/>
+    <rect x="50" width="20" height="14" rx="2" fill="#f59e0b" opacity="0.6"/>
+    <rect x="75" width="20" height="14" rx="2" fill="#f59e0b" opacity="0.3"/>
+    <rect x="100" width="20" height="14" rx="2" fill="#f59e0b" opacity="0.15"/>
+    <rect x="125" width="20" height="14" rx="2" fill="#f59e0b" opacity="0.08"/>
+  </g>
+  <text x="330" y="128" text-anchor="middle" font-family="monospace" font-size="8" fill="#fcd34d">producer → consumer</text>
+
+  <text x="330" y="155" text-anchor="middle" font-family="monospace" font-size="11" font-weight="bold" fill="#fbbf24">64B × N</text>
+  <text x="330" y="172" text-anchor="middle" font-family="monospace" font-size="8" fill="#f59e0b">descriptor ring</text>
+
+  <!-- Arrow -->
+  <line x1="410" y1="107" x2="470" y2="107" stroke="#22c55e" stroke-width="2" marker-end="url(#arrowGreen2)"/>
+  <text x="440" y="97" text-anchor="middle" font-family="monospace" font-size="8" fill="#4ade80">MB of data</text>
+
+  <!-- GPU -->
+  <rect x="470" y="45" width="160" height="150" rx="8" fill="#14532d" opacity="0.3" stroke="#22c55e" stroke-width="1.5"/>
+  <text x="550" y="70" text-anchor="middle" font-family="monospace" font-size="12" font-weight="bold" fill="#4ade80">GPU VRAM</text>
+  <text x="550" y="90" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">Tensor data</text>
+  <text x="550" y="105" text-anchor="middle" font-family="monospace" font-size="9" fill="#86efac">moves here</text>
+
+  <text x="550" y="145" text-anchor="middle" font-family="monospace" font-size="18" font-weight="bold" fill="#22c55e">MB</text>
+  <text x="550" y="165" text-anchor="middle" font-family="monospace" font-size="8" fill="#4ade80">actual tensor data</text>
+
+  <!-- Summary -->
+  <line x1="630" y1="107" x2="670" y2="107" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arrowGrey)"/>
+
+  <rect x="670" y="65" width="80" height="80" rx="8" fill="#065f46" opacity="0.4" stroke="#10b981" stroke-width="1.5"/>
+  <text x="710" y="95" text-anchor="middle" font-family="monospace" font-size="22" font-weight="bold" fill="#10b981">✓</text>
+  <text x="710" y="115" text-anchor="middle" font-family="monospace" font-size="8" fill="#34d399">Data on</text>
+  <text x="710" y="127" text-anchor="middle" font-family="monospace" font-size="8" fill="#34d399">GPU</text>
+
+  <text x="380" y="210" text-anchor="middle" font-family="monospace" font-size="10" fill="#64748b">CPU never touches tensor data — only 72 bytes of metadata per promotion</text>
+</svg>
