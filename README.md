@@ -139,6 +139,10 @@ Latency hiding:    T_compute(50ms) > T_transport(8.5ms) ✓
 
 ## Paper Reference
 
+**DOI: [10.5281/zenodo.21549808](https://doi.org/10.5281/zenodo.21549808)**
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21549808.svg)](https://doi.org/10.5281/zenodo.21549808)
+
 | Algorithm | Section | Description |
 |-----------|:-------:|-------------|
 | **Algorithm 1** | §3.1 | Fast-path single-GPU vs. sharded multi-GPU allocation |
@@ -217,3 +221,13 @@ cargo clippy --all-targets
 <p align="center">
   <img src="assets/license.svg" alt="AGPL-3.0 License" width="200"/>
 </p>
+
+This project is licensed under the **GNU Affero General Public License v3.0** — see the [LICENSE](LICENSE) file for details.
+
+## Community
+
+- [Security Policy](SECURITY.md) — report vulnerabilities
+- [Contributing Guide](CONTRIBUTING.md) — how to contribute
+- [Code of Conduct](CODE_OF_CONDUCT.md) — community standards
+- [Changelog](CHANGELOG.md) — version history
+- [Issue Tracker](https://github.com/Mr-DS-ML-85/VUGVA/issues) — bug reports and feature requests

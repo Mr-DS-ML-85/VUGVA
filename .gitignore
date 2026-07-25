@@ -1,20 +1,40 @@
-# VUGVA build artifacts
+# Rust / Cargo
 /target/
-*.o
-*.so
-*.dylib
-*.dll
-*.a
-*.lib
+**/*.rs.bk
+Cargo.lock
 
-# Editor
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
 Thumbs.db
-*.lock
+
+# LaTeX
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.nav
+*.snm
+*.vrb
+*.bcf
+*.run.xml
+*.blg
+
+# OS
+*.o
+*.so
+*.dylib
+*.dll
+
+# Build artifacts
+/debug/
+/release/
+/debug-incremental/
+/release-incremental/

@@ -54,7 +54,8 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:.8rem 2rem;display:f
 <div class="container">
   <div class="badge"><span class="dot"></span>docs · architecture</div>
   <h1>Architecture Deep Dive</h1>
-  <p>VUGVA implements a CPU-bypass hybrid memory architecture for GPU virtualization. The CPU only touches 72 bytes of metadata per operation — the actual megabyte-scale data moves via DMA.</p>
+  <p>VUGVA implements a CPU-bypass hybrid memory architecture for GPU virtualization. The CPU only touches 72 bytes of metadata per operation — the actual megabyte-scale data moves via DMA.
+  <br/><a href="https://doi.org/10.5281/zenodo.21549808" style="font-family:var(--font-mono);font-size:.8rem">DOI: 10.5281/zenodo.21549808</a></p>
 
   <h2>The Core Problem</h2>
   <p>In multi-GPU clusters without NVLink, tensor data is fragmented across GPU VRAM cards. Moving data between GPUs requires CPU involvement, creating a bottleneck. Traditional approaches copy tensors through CPU memory, wasting bandwidth.</p>
