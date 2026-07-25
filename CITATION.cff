@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+title: "VUGVA: Virtual Unified GPU VRAM Architecture"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - name: "Irfan Mahir"
+    email: "irfan@furylogic.com"
+    affiliation: "Independent Researcher, Bangladesh"
+repository-code: "https://github.com/Mr-DS-ML-85/VUGVA"
+url: "https://vugva.devforge.qzz.io"
+doi: "10.5281/zenodo.21549808"
+license: "AGPL-3.0"
+preferred-citation:
+  type: article
+  title: "VUGVA: A Software-Defined Virtual Unified GPU VRAM Architecture with CPU-Bypass Hybrid Memory for Non-NVLink Multi-GPU Clusters"
+  authors:
+    - name: "Irfan Mahir"
+      email: "irfan@furylogic.com"
+      affiliation: "Independent Researcher, Bangladesh"
+  year: 2026
+  doi: "10.5281/zenodo.21549808"
+keywords:
+  - gpu
+  - vram
+  - memory-virtualization
+  - cuda
+  - multi-gpu
+  - cpu-bypass
+  - dma
+  - rust
+  - llm
+  - inference
