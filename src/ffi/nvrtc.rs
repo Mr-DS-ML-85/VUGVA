@@ -52,8 +52,14 @@ pub const NVRTC_ERROR_NOT_FOUND: i32 = 10_000;
 
 /// Opaque handle to a compiled program.
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct nvrtcProgram(pub *mut c_void);
+
+impl Default for nvrtcProgram {
+    fn default() -> Self {
+        Self(std::ptr::null_mut())
+    }
+}
 
 impl nvrtcProgram {
     /// A null program handle — the correct initial value for an out-parameter.

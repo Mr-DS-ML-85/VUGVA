@@ -74,7 +74,9 @@ impl RangeAllocator {
         // Reuse before extending.
         let mut best: Option<usize> = None;
         for (i, &(_, len)) in self.free_blocks.iter().enumerate() {
-            if len >= aligned && best.is_none_or(|b| len < self.free_blocks[b].1) {
+            if len >= aligned && matches!(best, None)
+                || best.map_or(false, |b| len < self.free_blocks[b].1)
+            {
                 best = Some(i);
             }
         }

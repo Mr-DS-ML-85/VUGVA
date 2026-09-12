@@ -30,23 +30,47 @@ pub struct CUdevice(pub i32);
 
 /// `CUcontext` — pointer-sized context handle.
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CUcontext(pub *mut c_void);
+
+impl Default for CUcontext {
+    fn default() -> Self {
+        Self(std::ptr::null_mut())
+    }
+}
 
 /// `CUmodule` — loadable module.
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CUmodule(pub *mut c_void);
+
+impl Default for CUmodule {
+    fn default() -> Self {
+        Self(std::ptr::null_mut())
+    }
+}
 
 /// `CUfunction` — handle to a kernel function.
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CUfunction(pub *mut c_void);
+
+impl Default for CUfunction {
+    fn default() -> Self {
+        Self(std::ptr::null_mut())
+    }
+}
 
 /// `CUstream` — stream handle; null = default stream.
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CUstream(pub *mut c_void);
+
+impl Default for CUstream {
+    fn default() -> Self {
+        Self(std::ptr::null_mut())
+    }
+}
 
 /// `CUdeviceptr` — pointer to device memory.
 #[repr(transparent)]
@@ -55,8 +79,14 @@ pub struct CUdeviceptr(pub u64);
 
 /// `CUevent` — CUDA event handle.
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct CUevent(pub *mut c_void);
+
+impl Default for CUevent {
+    fn default() -> Self {
+        Self(std::ptr::null_mut())
+    }
+}
 
 /// `CUresult` — return code from the driver API.
 pub type CUresult = c_int;
