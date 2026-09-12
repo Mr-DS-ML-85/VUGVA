@@ -37,11 +37,20 @@ pub struct DmaDescriptor {
     pub dst_ordinal: u32,
     /// Transfer priority: 0=cold, 1=warm, 2=hot.
     pub priority: u32,
-    /// Flags (reserved, set to 0).
+    /// Transfer flags. See `DMA_FLAG_*`.
+    ///
+    /// Direction is not otherwise recoverable from a descriptor: `src_addr`
+    /// and `dst_addr` are both bare `u64`, so a host pointer and a device
+    /// pointer are indistinguishable once written. A consumer has to be told
+    /// which address space each one is in.
     pub flags: u32,
     /// Pad to 64 bytes (the paper specifies 64-byte descriptors).
     _pad: [u8; 28],
 }
+
+/// `dst_addr` is host DRAM rather than device memory: this descriptor is a
+/// VRAM→DRAM writeback, not a promotion.
+pub const DMA_FLAG_WRITEBACK: u32 = 1 << 0;
 
 const DESCRIPTOR_SIZE: usize = std::mem::size_of::<DmaDescriptor>();
 
@@ -271,6 +280,42 @@ impl DmaEngine {
         };
 
         self.rings[dst_gpu].submit(&desc)
+    }
+
+    /// Submit a writeback transfer from VRAM back down to DRAM.
+    ///
+    /// The reverse of [`DmaEngine::submit_dram_to_vram`], and the descriptor
+    /// `demote` needs. Without it, `demote` reached for `submit_vram_to_vram`
+    /// and described a *device-to-device* copy on a single GPU whose
+    /// destination was a host pointer — a descriptor that names the wrong
+    /// address space and the wrong direction, so nothing downstream could ever
+    /// execute it correctly (BUG #4).
+    pub fn submit_vram_to_dram(
+        &self,
+        src_gpu: usize,
+        src_addr: u64,
+        dst_addr: u64,
+        size_bytes: usize,
+        priority: u32,
+    ) -> Result<u32> {
+        if src_gpu >= self.num_gpus {
+            return Err(crate::VugvaError::InvalidGpu(src_gpu));
+        }
+
+        let desc = DmaDescriptor {
+            src_addr,
+            dst_addr,
+            size: size_bytes as u32,
+            src_ordinal: src_gpu as u32,
+            // Destination is host DRAM on this GPU's NUMA node, mirroring the
+            // convention `submit_dram_to_vram` uses for its source.
+            dst_ordinal: src_gpu as u32,
+            priority,
+            flags: DMA_FLAG_WRITEBACK,
+            _pad: [0u8; 28],
+        };
+
+        self.rings[src_gpu].submit(&desc)
     }
 
     /// Submit a peer-to-peer VRAM→VRAM transfer (CPU-bypass).

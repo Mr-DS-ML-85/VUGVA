@@ -5,6 +5,7 @@
 //! between computing Tensor Cores and requested tensor segments across
 //! the PCIe switch topology.
 
+use crate::context::PrimaryContext;
 use crate::ffi::cuda::*;
 use crate::{check_cu, Result, VugvaError};
 use std::collections::HashMap;
@@ -135,6 +136,12 @@ pub struct PeerMatrix {
     /// `enabled[src][dst]` = true if peer access has been activated.
     enabled: Vec<Vec<bool>>,
     num_gpus: usize,
+    /// Primary contexts retained by [`PeerMatrix::enable_all`], one per device
+    /// in `gpu_ordinals` order. Held for the life of the matrix — the peer
+    /// mappings installed against these contexts die with the last reference —
+    /// and released by [`PrimaryContext`]'s own `Drop`. Empty until
+    /// `enable_all` runs.
+    primary_ctxs: Vec<PrimaryContext>,
 }
 
 impl PeerMatrix {
@@ -167,32 +174,68 @@ impl PeerMatrix {
             can_access,
             enabled,
             num_gpus: n,
+            primary_ctxs: Vec::new(),
         })
     }
 
-    /// Enable P2P access for all valid pairs.
-    /// Must be called with the source GPU's context current.
+    /// Enable P2P access for every pair the hardware reports as capable.
+    ///
+    /// `cuCtxEnablePeerAccess` is directional and operates on the *currently
+    /// current* context: it grants that context the right to address the peer
+    /// **context** passed as its argument. So for each pair we make the source
+    /// GPU's context current and hand it the destination's context.
+    ///
+    /// Contexts are obtained with `cuDevicePrimaryCtxRetain`, not
+    /// `cuCtxCreate_v2`. The primary context is reference-counted and shared
+    /// with everything else in the process, so retaining it twice is free and
+    /// the mapping we install stays visible to other users of the same device.
+    /// The previous implementation created a fresh context per source GPU and
+    /// never destroyed it. Measured on this machine that is 97.8 MB of VRAM
+    /// leaked per device per call (see [`crate::context`]), and the peer mapping
+    /// was installed into a private context that no other code path ever made
+    /// current, so it had no effect on real transfers either.
+    ///
+    /// Retained contexts are kept in `self.primary_ctxs` for the life of the
+    /// matrix: releasing them here would drop the refcount to zero and tear
+    /// down the very mappings we just installed.
     pub fn enable_all(&mut self, gpu_ordinals: &[i32]) -> Result<()> {
-        for (i, &src_ord) in gpu_ordinals.iter().enumerate() {
-            if !self.enabled[i][i] {
-                let src_dev = CUdevice(src_ord);
-                // Create context for src GPU
-                let mut ctx = CUcontext(std::ptr::null_mut());
-                unsafe {
-                    check_cu("cuCtxCreate_v2", cuCtxCreate_v2(&mut ctx, 0, src_dev))?;
-                }
+        // Retain a primary context per device, once, before touching any pair.
+        // `PrimaryContext` owns its own release, so a failure partway through
+        // this loop drops the ones already retained instead of leaking them —
+        // which the hand-rolled retain/release pair here used to do.
+        if self.primary_ctxs.is_empty() {
+            let mut ctxs = Vec::with_capacity(gpu_ordinals.len());
+            for &ord in gpu_ordinals {
+                ctxs.push(PrimaryContext::retain(ord)?);
+            }
+            self.primary_ctxs = ctxs;
+        }
 
-                for (j, &dst_ord) in gpu_ordinals.iter().enumerate() {
-                    if i != j && self.can_access[i][j] && !self.enabled[i][j] {
-                        let dst_dev = CUdevice(dst_ord);
-                        unsafe {
-                            let res = cuCtxEnablePeerAccess(dst_dev, 0);
-                            // CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED (724) is non-fatal
-                            if res == 0 || res == 724 {
-                                self.enabled[i][j] = true;
-                            }
-                        }
-                    }
+        for i in 0..gpu_ordinals.len() {
+            // The guard pops on drop, so the `?` below cannot leave GPU `i`'s
+            // context current on the caller's thread.
+            let _guard = self.primary_ctxs[i].enter()?;
+
+            for j in 0..gpu_ordinals.len() {
+                if i == j || !self.can_access[i][j] || self.enabled[i][j] {
+                    continue;
+                }
+                let dst_ctx = self.primary_ctxs[j].raw();
+                // SAFETY: `dst_ctx` is a live retained primary context, and
+                // GPU `i`'s context is current, which is what this call needs.
+                let res = unsafe { cuCtxEnablePeerAccess(dst_ctx, 0) };
+                // ALREADY_ENABLED means another user of this primary context
+                // installed the same mapping first — success, not failure.
+                // (This was previously compared against the literal 724, which
+                // is not a CUresult at all; the real code is 704, so an
+                // already-enabled pair was recorded as *not* enabled.)
+                //
+                // Any other failure is left as `enabled[i][j] == false` rather
+                // than propagated: TOO_MANY_PEERS on a large box is a real
+                // hardware limit, and callers must consult `is_enabled` before
+                // attempting a peer copy regardless.
+                if res == CUDA_SUCCESS || res == CUDA_ERROR_PEER_ACCESS_ALREADY_ENABLED {
+                    self.enabled[i][j] = true;
                 }
             }
         }
@@ -275,15 +318,33 @@ impl GpuCluster {
             }
             info.total_vram = total;
 
-            // Free VRAM (create temp context)
-            let mut ctx = CUcontext(std::ptr::null_mut());
-            unsafe {
-                cuCtxCreate_v2(&mut ctx, 0, dev);
+            // Free VRAM. `cuMemGetInfo_v2` reports for whatever context is
+            // current, so one has to be pushed first.
+            //
+            // This used to be `cuCtxCreate_v2` / `cuCtxDestroy_v2` with both
+            // return codes discarded (BUG #17). Two things were wrong. The
+            // private context cost ~98 MB of VRAM while it lived, so the
+            // "free VRAM" figure it produced was already short by roughly the
+            // size of the probe. And if the create failed — GPU in exclusive
+            // mode, or another process holding it — `ctx` stayed null,
+            // `cuMemGetInfo_v2` failed against no context, its error was
+            // dropped too, and `free_vram` silently stayed 0. A perfectly
+            // healthy GPU then looked like it had no memory, and the allocator
+            // skipped it.
+            //
+            // Retaining the primary context costs nothing (it is refcounted and
+            // already alive), the guard pops it even if a later `?` in this
+            // loop returns early, and both errors now propagate.
+            {
+                let pctx = crate::context::PrimaryContext::retain(ord)?;
+                let _guard = pctx.enter()?;
                 let mut free: usize = 0;
                 let mut tot: usize = 0;
-                cuMemGetInfo_v2(&mut free, &mut tot);
+                // SAFETY: both are valid out-pointers and a context is current.
+                unsafe {
+                    check_cu("cuMemGetInfo_v2", cuMemGetInfo_v2(&mut free, &mut tot))?;
+                }
                 info.free_vram = free;
-                cuCtxDestroy_v2(ctx);
             }
 
             // Compute capability
@@ -457,6 +518,7 @@ mod tests {
             can_access: vec![vec![true, false], vec![false, true]],
             enabled: vec![vec![false, false], vec![false, false]],
             num_gpus: 2,
+            primary_ctxs: Vec::new(),
         };
         assert!(matrix.can_access(0, 0));
         assert!(matrix.can_access(1, 1));
@@ -483,6 +545,7 @@ mod tests {
                 can_access: vec![vec![true]],
                 enabled: vec![vec![false]],
                 num_gpus: 1,
+                primary_ctxs: Vec::new(),
             },
             numa: NumaTopology {
                 distances: vec![vec![10, 18], vec![18, 10]],

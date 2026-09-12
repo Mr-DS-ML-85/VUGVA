@@ -56,7 +56,11 @@ fn compile_and_load(
     arch: &str, // e.g. "sm_89"
 ) -> Result<CompiledKernel> {
     let c_source = std::ffi::CString::new(source).unwrap();
-    let c_name = std::ffi::CString::new("vugva_kernel").unwrap();
+    // NVRTC stamps this name onto every diagnostic it emits. It used to be the
+    // constant "vugva_kernel", so a syntax error in *any* kernel reported the
+    // same filename and gave no clue which source string failed. Naming it after
+    // the entry point makes the compile log self-identifying.
+    let c_name = std::ffi::CString::new(format!("{kernel_name}.cu")).unwrap();
     let c_kernel = std::ffi::CString::new(kernel_name).unwrap();
 
     let mut program = nvrtcProgram(std::ptr::null_mut());

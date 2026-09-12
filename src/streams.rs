@@ -83,6 +83,19 @@ impl CudaStream {
     }
 }
 
+// SAFETY: a `CUstream` is an opaque driver handle, and the CUDA Driver API is
+// documented as thread-safe: work may be submitted to one stream from several
+// threads, and the driver serialises it internally. The handle is not tied to
+// the thread that created it — only to the *context* that was current then,
+// which `ContextRegistry` keeps alive for as long as the stream exists.
+//
+// `Sync` is the meaningful half. Without it nothing that owns a stream —
+// `StreamPool`, and therefore `TieredPool` — could be shared or even moved
+// across threads, which rules out the background sweep and the prefetch thread
+// the paper's pipeline is built on (BUG #11).
+unsafe impl Send for CudaStream {}
+unsafe impl Sync for CudaStream {}
+
 impl Drop for CudaStream {
     fn drop(&mut self) {
         if !self.inner.is_default() {
@@ -175,6 +188,12 @@ impl CudaEvent {
     }
 }
 
+// SAFETY: as for `CudaStream` — an opaque, driver-managed, thread-safe handle.
+// Recording an event on one thread and synchronising on it from another is the
+// intended cross-thread completion signal.
+unsafe impl Send for CudaEvent {}
+unsafe impl Sync for CudaEvent {}
+
 impl Drop for CudaEvent {
     fn drop(&mut self) {
         if !self.inner.0.is_null() {
@@ -200,16 +219,38 @@ pub struct StreamPool {
 }
 
 impl StreamPool {
-    /// Create compute + prefetch stream pairs for `num_gpus` GPUs.
-    pub fn new(num_gpus: usize) -> Result<Self> {
+    /// Create compute + prefetch stream pairs, one of each per GPU in
+    /// `contexts`, each created **inside that GPU's own context**.
+    ///
+    /// The context matters: a `CUstream` belongs to whichever context was
+    /// current when it was created, permanently. The previous signature took a
+    /// bare `num_gpus` and created every stream in whatever context happened to
+    /// be current, which failed two ways:
+    ///
+    /// * With no context current — the normal state during `TieredPool::new`,
+    ///   since nothing had bound one yet — `cuStreamCreate` returned
+    ///   `CUDA_ERROR_INVALID_CONTEXT` (201) and the pool could not be built at
+    ///   all. No test caught it because none constructed a pool on a GPU.
+    /// * With *some* context current, all 2N streams landed in that one
+    ///   context. `compute[3]` would then be a GPU 0 stream, so every "async on
+    ///   GPU 3" transfer either failed or silently ran on the wrong device.
+    ///
+    /// Taking the registry makes the pairing explicit and index-aligned with
+    /// `cluster.ordinals`, which is how every caller addresses GPUs.
+    pub fn new(contexts: &crate::context::ContextRegistry) -> Result<Self> {
+        let num_gpus = contexts.len();
         let mut compute = Vec::with_capacity(num_gpus);
         let mut prefetch = Vec::with_capacity(num_gpus);
 
-        for _ in 0..num_gpus {
+        for idx in 0..num_gpus {
+            // Guard pops even if a create below fails, so a partial pool does
+            // not leave a foreign context current on the caller's thread.
+            let _guard = contexts.enter(idx)?;
             compute.push(CudaStream::new()?);
-            // Prefetch stream at highest priority (-1) so it doesn't
-            // contend with compute.
-            prefetch.push(CudaStream::with_priority(-1)?);
+            // Prefetch runs ahead of compute (paper §5.1: transport for layer
+            // n+1 overlaps compute for layer n), so it gets the higher
+            // priority — but only a priority the device actually supports.
+            prefetch.push(CudaStream::with_priority(Self::highest_priority()?)?);
         }
 
         Ok(StreamPool {
@@ -217,6 +258,26 @@ impl StreamPool {
             prefetch,
             len: num_gpus,
         })
+    }
+
+    /// The most favourable stream priority the current device supports.
+    ///
+    /// CUDA's convention is inverted — *numerically lower* means higher
+    /// priority — and the usable range is device-specific. The old code
+    /// hard-coded `-1`, which happens to be valid on most consumer parts but is
+    /// out of range on hardware that reports `[0, 0]`, and leaves priority on
+    /// the table on hardware whose range is wider than one step.
+    fn highest_priority() -> Result<i32> {
+        let (mut least, mut greatest) = (0i32, 0i32);
+        // SAFETY: two valid out-pointers; a context is current (the caller
+        // holds a `ContextGuard`).
+        unsafe {
+            check_cu(
+                "cuCtxGetStreamPriorityRange",
+                cuCtxGetStreamPriorityRange(&mut least, &mut greatest),
+            )?;
+        }
+        Ok(greatest)
     }
 
     /// Synchronize both streams on GPU `idx`.

@@ -143,6 +143,61 @@ pub fn nvrtc_module() -> Result<&'static LoadedLib> {
     })
 }
 
+/// Resolve a symbol from the **CUDA driver** and return its address as a
+/// `usize`, or `0` when either the driver or the symbol is absent.
+///
+/// `0` is the agreed "unresolved" sentinel used by the `cuda_api!` wrappers in
+/// [`cuda`]: no valid symbol is ever mapped at address zero, so callers do not
+/// need a second `Option` discriminant to distinguish "missing" from "found".
+/// A machine with no NVIDIA driver therefore gets `CUDA_ERROR_NOT_FOUND` back
+/// from every entry point instead of failing to start.
+///
+/// The driver exports several entry points only under a versioned name — the
+/// unsuffixed `cuCtxCreate`, for instance, is an ABI-compatibility alias that
+/// is not guaranteed to exist on every install. We look up the caller's name
+/// verbatim first, then fall back to the `_v2`/`_v3` spellings so that a
+/// binding declared as `cuFoo` still resolves against a driver that only ships
+/// `cuFoo_v2`. Names that already carry a version suffix hit on the first try.
+pub(crate) fn cuda_sym_addr(name: &str) -> usize {
+    let lib = match cuda_module() {
+        Ok(l) => l,
+        // No driver on this machine: every symbol is "missing", which the
+        // wrappers translate into a returnable error rather than a crash.
+        Err(_) => return 0,
+    };
+    // SAFETY: `lib.handle` came from a successful `dlopen` and stays valid for
+    // the life of the process — the `OnceLock` never hands it to `dlclose`.
+    unsafe {
+        if let Some(p) = resolve(lib.handle, name) {
+            return p as usize;
+        }
+        if !name.ends_with("_v2") && !name.ends_with("_v3") {
+            for suffix in ["_v2", "_v3"] {
+                if let Some(p) = resolve(lib.handle, &format!("{name}{suffix}")) {
+                    return p as usize;
+                }
+            }
+        }
+    }
+    0
+}
+
+/// Resolve a symbol from the **NVRTC** runtime compiler and return its address
+/// as a `usize`, or `0` when either the library or the symbol is absent.
+///
+/// Same `0`-as-sentinel contract as [`cuda_sym_addr`]. No `_v2` fallback: NVRTC
+/// does not version its entry points that way — it ships a whole new SONAME per
+/// CUDA major release instead, which [`nvrtc_module`] already walks.
+pub(crate) fn nvrtc_sym_addr(name: &str) -> usize {
+    let lib = match nvrtc_module() {
+        Ok(l) => l,
+        Err(_) => return 0,
+    };
+    // SAFETY: `lib.handle` came from a successful `dlopen` and stays valid for
+    // the life of the process.
+    unsafe { resolve(lib.handle, name).map_or(0, |p| p as usize) }
+}
+
 /// Resolve a symbol from the **NVRTC** library and transmute to a typed
 /// function pointer.
 ///

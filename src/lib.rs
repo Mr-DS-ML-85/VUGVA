@@ -11,6 +11,7 @@
 //! - [`dma`]          — CPU-Bypass DMA engine (GPUDirect + IOMMU P2P)
 //! - [`prefetch`]     — Look-Ahead Attention Tracking (predictive prefetch)
 //! - [`gpu`]          — GPU device + peer-access discovery via NUMA mapping
+//! - [`membrane`]     — LGM tier membrane: frequency-driven T0/T1/T2 placement
 //! - [`streams`]      — CUDA stream management for async pipelines
 //! - [`nvrtc_kernel`] — NVRTC runtime CUDA kernel compilation
 //! - [`ffi::cuda`]    — Raw FFI to libcuda.so (CUDA Driver API)
@@ -36,11 +37,15 @@
 #![allow(non_snake_case)]
 
 pub mod allocator;
+pub mod context;
 pub mod dma;
 pub mod ffi;
 pub mod gpu;
+pub mod membrane;
 pub mod nvrtc_kernel;
 pub mod prefetch;
+pub mod range_alloc;
+pub mod spill;
 pub mod streams;
 pub mod tiered;
 pub mod vmt;
@@ -93,6 +98,23 @@ pub enum VugvaError {
     },
     /// DMA command ring is full (all 1024 slots occupied).
     DmaRingFull,
+    /// A host DRAM pool could not satisfy a request.
+    ///
+    /// Distinct from `CudaError { code: CUDA_ERROR_OUT_OF_MEMORY }`, which is
+    /// what this used to report. That was actively misleading: it named a
+    /// *device* OOM for a failure that has nothing to do with the GPU, so the
+    /// obvious remedies — shrink the batch, free something off the card — all
+    /// address the wrong resource. Carrying the sizes also separates the two
+    /// real causes: `requested > capacity` needs a bigger pool, while a small
+    /// request failing with a large `available` is fragmentation.
+    DramOom {
+        /// Bytes requested, after alignment.
+        requested: usize,
+        /// Bytes not currently handed out anywhere in the pool.
+        available: usize,
+        /// Total size of the pool.
+        capacity: usize,
+    },
 }
 
 impl std::fmt::Display for VugvaError {
@@ -116,6 +138,15 @@ impl std::fmt::Display for VugvaError {
                 write!(f, "invalid page transition {from:?} → {to:?} on {page:?}")
             }
             VugvaError::DmaRingFull => write!(f, "DMA command ring is full"),
+            VugvaError::DramOom {
+                requested,
+                available,
+                capacity,
+            } => write!(
+                f,
+                "host DRAM pool exhausted: requested {requested} bytes, \
+                 {available} free of {capacity} total"
+            ),
         }
     }
 }

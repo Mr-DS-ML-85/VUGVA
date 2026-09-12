@@ -9,6 +9,7 @@
 //! The allocator also exposes the `VugvaEngine` — the top-level public API
 //! that ties together VMT, GPU cluster, streams, and prefetch.
 
+use crate::context::ContextRegistry;
 use crate::ffi::cuda::*;
 use crate::gpu::{GpuCluster, GpuInfo};
 use crate::streams::StreamPool;
@@ -26,8 +27,14 @@ const SINGLE_GPU_LIMIT: usize = 128 * 1024 * 1024;
 /// Low-level multi-GPU VRAM allocator. Manages per-GPU CUDA contexts and
 /// raw `cuMemAlloc` calls.
 pub struct UnifiedAllocator {
-    /// Per-GPU CUDA contexts.
-    contexts: Vec<CUcontext>,
+    /// Per-GPU retained **primary** contexts.
+    ///
+    /// Not `cuCtxCreate_v2` contexts. A private context's allocations are
+    /// invisible to the CUDA runtime the host framework uses, so every device
+    /// pointer this allocator returned was unaddressable by its own caller —
+    /// and each context cost 97.8 MB of VRAM on this machine. See
+    /// [`crate::context`] for the measurement.
+    contexts: ContextRegistry,
     /// Device ordinals.
     #[allow(dead_code)]
     ordinals: Vec<i32>,
@@ -37,32 +44,32 @@ pub struct UnifiedAllocator {
 }
 
 impl UnifiedAllocator {
-    /// Create and activate contexts for all GPUs.
+    /// Retain the primary context of every GPU in `ordinals`.
     pub fn new(ordinals: &[i32], infos: &[GpuInfo]) -> Result<Self> {
-        let mut contexts = Vec::with_capacity(ordinals.len());
-
-        for &ord in ordinals {
-            let dev = CUdevice(ord);
-            let mut ctx = CUcontext(std::ptr::null_mut());
-            unsafe {
-                check_cu("cuCtxCreate_v2", cuCtxCreate_v2(&mut ctx, 0, dev))?;
-            }
-            contexts.push(ctx);
-        }
-
         Ok(UnifiedAllocator {
-            contexts,
+            contexts: ContextRegistry::new(ordinals)?,
             ordinals: ordinals.to_vec(),
             infos: infos.to_vec(),
         })
     }
 
     /// Switch to GPU `idx`'s context.
+    ///
+    /// Now bounds-checked: the old body indexed `self.contexts[idx]` directly,
+    /// so a stale GPU index panicked instead of returning `InvalidGpu`.
     pub fn set_device(&self, idx: usize) -> Result<()> {
-        unsafe {
-            check_cu("cuCtxSetCurrent", cuCtxSetCurrent(self.contexts[idx]))?;
-        }
-        Ok(())
+        self.contexts.bind(idx)
+    }
+
+    /// The retained primary context for GPU `idx`.
+    pub fn context(&self, idx: usize) -> Result<CUcontext> {
+        Ok(self.contexts.get(idx)?.raw())
+    }
+
+    /// The whole context registry, for callers that must create resources
+    /// (streams, events, modules) inside each GPU's context.
+    pub fn contexts(&self) -> &ContextRegistry {
+        &self.contexts
     }
 
     /// Query free VRAM on GPU `idx` (bytes).
@@ -105,16 +112,21 @@ impl UnifiedAllocator {
         bytes: usize,
         stream: CUstream,
     ) -> Result<()> {
-        // For simplicity, both contexts must be the destination context.
+        // `stream` belongs to the destination GPU, so that context is the one
+        // that must be current for the submission.
         self.set_device(dst_gpu)?;
+        let dst_ctx = self.context(dst_gpu)?;
+        let src_ctx = self.context(src_gpu)?;
+        // SAFETY: both pointers are live allocations of `bytes` bytes in the
+        // two contexts named, and `stream` was created in `dst_ctx`.
         unsafe {
             check_cu(
                 "cuMemcpyPeerAsync",
                 cuMemcpyPeerAsync(
                     CUdeviceptr(dst_ptr),
-                    self.contexts[dst_gpu],
+                    dst_ctx,
                     CUdeviceptr(src_ptr),
-                    self.contexts[src_gpu],
+                    src_ctx,
                     bytes,
                     stream,
                 ),
@@ -122,24 +134,13 @@ impl UnifiedAllocator {
         }
         Ok(())
     }
-
-    /// Destroy all CUDA contexts.
-    pub fn destroy(&mut self) {
-        // Destroy in reverse order so that later GPUs are cleaned up first.
-        for ctx in self.contexts.drain(..).rev() {
-            unsafe {
-                cuCtxSetCurrent(ctx);
-                cuCtxDestroy_v2(ctx);
-            }
-        }
-    }
 }
 
-impl Drop for UnifiedAllocator {
-    fn drop(&mut self) {
-        self.destroy();
-    }
-}
+// No `Drop` and no `destroy()`. Both used to exist and both were wrong for a
+// library: `cuCtxDestroy_v2` on a *primary* context tears down every allocation
+// in it, including memory belonging to the host framework that shares it.
+// `ContextRegistry` drops a refcount instead, which is the only correct
+// teardown for a context we did not exclusively create.
 
 // ============================================================================
 // VugvaEngine — the top-level V1 API
@@ -210,7 +211,9 @@ impl VugvaEngine {
         let allocator = UnifiedAllocator::new(&cluster.ordinals, &cluster.infos)?;
         let num_numa = cluster.numa.node_count;
         let vmt = VirtualMemoryTable::new(gpu_ordinals.len(), num_numa);
-        let streams = StreamPool::new(gpu_ordinals.len())?;
+        // Streams must be created in each GPU's own context, which the
+        // allocator already holds.
+        let streams = StreamPool::new(allocator.contexts())?;
 
         Ok(VugvaEngine {
             cluster,
@@ -349,17 +352,44 @@ impl VugvaEngine {
     }
 
     /// Free an allocation across all GPUs.
+    ///
+    /// Every chunk is attempted even if an earlier one fails, and the first
+    /// failure is returned once the sweep is done. Two things were wrong
+    /// before (BUG #25):
+    ///
+    /// * The result of `free_device` was discarded with `let _ =`. A double
+    ///   free or a stale pointer — exactly the corruption worth knowing about
+    ///   — reported success to the caller, and the VMT entry had already been
+    ///   removed, so the leak became unattributable.
+    /// * `index_of(..).unwrap_or(i)` silently substituted the *loop counter*
+    ///   for a GPU index it could not resolve, so a chunk whose ordinal was
+    ///   not in this cluster got freed against an unrelated GPU's context.
+    ///   `cuMemFree_v2` on a pointer from another context is undefined
+    ///   behaviour, not an error return. An unresolvable ordinal is now
+    ///   reported instead of guessed.
+    ///
+    /// Returning early on the first error would be worse than either: the
+    /// remaining chunks would leak with no record that they exist.
     pub fn free(&mut self, name: &str) -> Result<()> {
         let page = self
             .vmt
             .remove(name)
             .ok_or_else(|| VugvaError::UnknownAllocation(name.to_string()))?;
 
-        for (i, chunk) in page.vram_chunks.iter().enumerate() {
-            let gpu_idx = self.cluster.index_of(chunk.gpu_ordinal).unwrap_or(i);
-            let _ = self.allocator.free_device(gpu_idx, chunk.device_ptr);
+        let mut first_err: Option<VugvaError> = None;
+        for chunk in page.vram_chunks.iter() {
+            let result = match self.cluster.index_of(chunk.gpu_ordinal) {
+                Some(gpu_idx) => self.allocator.free_device(gpu_idx, chunk.device_ptr),
+                None => Err(VugvaError::InvalidGpu(chunk.gpu_ordinal as usize)),
+            };
+            if let Err(e) = result {
+                first_err.get_or_insert(e);
+            }
         }
 
-        Ok(())
+        match first_err {
+            Some(e) => Err(e),
+            None => Ok(()),
+        }
     }
 }
